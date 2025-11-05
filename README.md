@@ -1,6 +1,9 @@
-# Machine_Learning_AWS
-najebali smo
+## 📝 Group Information
 
-José Fernando Gutiérrez Montero
-Neila Fekovic
-Tymo Verhaegen
+Group name: Najebali smo
+
+| Role | Name | GitHub Handle |
+| :--- | :--- | :--- |
+| [José Fernando Gutiérrez Montero] |
+| Neila Fekovic |
+| Tymo Verhaegen |

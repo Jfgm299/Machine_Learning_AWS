@@ -1,0 +1,22 @@
+# Core Data Science
+pandas
+numpy
+scikit-learn
+pyarrow
+
+# Visualization
+matplotlib
+seaborn
+
+# Modeling 
+pycaret
+xgboost
+lightgbm
+
+# Deployment
+streamlit
+fastapi
+uvicorn
+
+# Development Tools
+ipykernel

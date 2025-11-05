@@ -1,0 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Environment files
+.env
+.venv
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+
+# Ignore all files in data folders, but keep the folder structure
+data/electricity_raw/*
+data/housing_raw/*
+!data/electricity_raw/.gitkeep
+!data/housing_raw/.gitkeep
+
+# Optionally add a .gitkeep file in empty folders so Git tracks them

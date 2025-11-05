@@ -25,10 +25,23 @@ Thumbs.db
 dist/
 build/
 
-# Ignore all files in data folders, but keep the folder structure
-data/electricity_raw/*
-data/housing_raw/*
-!data/electricity_raw/.gitkeep
-!data/housing_raw/.gitkeep
+# --- Ignore EVERYTHING inside the main data folders ---
+
+# This ignores all files inside the electricity and housing folders,
+# including the CSVs and the Parquet files we want to skip.
+/data/electricity/**
+/data/housing/**
+
+# --- EXCEPTION: UN-IGNORE specific files and folders ---
+
+# Keep the data/electricity/processed/ directory (if it exists)
+!/data/electricity/processed/
+
+# Keep the data/housing/processed/ directory (if it exists)
+!/data/housing/processed/
+
+# Keep the .gitkeep files (to maintain structure on clone)
+!/data/electricity/processed/.gitkeep
+!/data/housing/processed/.gitkeep
 
 # Optionally add a .gitkeep file in empty folders so Git tracks them

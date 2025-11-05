@@ -2,7 +2,7 @@
 
 Group name: Najebali smo
 
-| Role | Name | GitHub Handle |
+| Name |
 | :--- | :--- | :--- |
 | José Fernando Gutiérrez Montero |
 | Neila Fekovic |

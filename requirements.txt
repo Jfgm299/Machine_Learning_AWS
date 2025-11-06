@@ -12,7 +12,6 @@ seaborn
 # Modeling 
 pycaret
 xgboost
-lightgbm
 
 # Development Tools
 ipykernel

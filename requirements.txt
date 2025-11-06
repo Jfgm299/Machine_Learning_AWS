@@ -3,6 +3,7 @@ pandas
 numpy
 scikit-learn
 pyarrow
+fastparquet
 
 # Visualization
 matplotlib

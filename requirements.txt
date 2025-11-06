@@ -13,10 +13,5 @@ pycaret
 xgboost
 lightgbm
 
-# Deployment
-streamlit
-fastapi
-uvicorn
-
 # Development Tools
 ipykernel

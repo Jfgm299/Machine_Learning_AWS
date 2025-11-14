@@ -1,6 +1,0 @@
-lightgbm
-pandas
-numpy
-scikit-learn
-pyarrow
-joblib

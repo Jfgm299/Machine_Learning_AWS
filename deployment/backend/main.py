@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import pandas as pd 
 
 app = FastAPI()
 
@@ -24,7 +26,30 @@ def read_root():
 # LOAD MODEL
 # -------------------------------------------
 # IMPORTANT: This must point to your actual pipeline path
-model = joblib.load("../../data/trained_models/housing/housing_pipeline_v4_xgboost.pkl")
+model = joblib.load("./../../data/trained_models/housing/housing_pipeline_v4_xgboost.pkl")
+print(model.feature_names_in_)
+
+# Define the expected order and types for the DataFrame input
+# NOTE: This list now strictly matches the user's final column list (excluding 'price').
+PREDICT_COLUMNS = [
+    'property_type',
+    'old_new',
+    'duration',
+    'town_city',
+    'district',
+    'county',
+    'sale_year',
+    'sale_month'
+]
+
+CATEGORICAL_COLUMNS = [
+    'property_type',
+    'old_new',
+    'duration',
+    'town_city',
+    'district',
+    'county',
+]
 
 
 # -------------------------------------------
@@ -38,47 +63,49 @@ class InputData(BaseModel):
     town_city: str
     district: str
     county: str
-    record_status___monthly_file_only: str
     sale_year: int
+    sale_month: int  
 
 
 # -------------------------------------------
 # PREDICT ENDPOINT
 # -------------------------------------------
-from datetime import datetime
 
 @app.post("/predict")
 def predict(data: InputData):
-    print(data.sale_date)
-    # Ensure date is converted to YYYY-MM-DD
-    try:
-        # If frontend sends: "2025-11-18"
+    # We use a dictionary structure where the keys match the column names expected by the model.
+    # sale_date is now included as requested by the final column schema.
+    input_data_dict = {
+        'property_type': [data.property_type],
+        'old_new': [data.old_new],
+        'duration': [data.duration],
+        'town_city': [data.town_city],
+        'district': [data.district],
+        'county': [data.county],
+        'sale_year': [data.sale_year],
+        'sale_month': [data.sale_month]   # <-- ADD THIS
+    }
+
+    # CONVERT TO PANDAS DATAFRAME
+    input_df = pd.DataFrame(input_data_dict)
+    
+    # 1. Re-order the columns to match the trained model's feature order
+    input_df = input_df[PREDICT_COLUMNS]
+
+    # 2. Explicitly cast known categorical columns to 'category' type
+    for col in CATEGORICAL_COLUMNS:
+        if col in input_df.columns:
+            # Cast the type to 'category', which the pipeline's encoders prefer
+            input_df[col] = input_df[col].astype('category')
         
-        sale_date_clean = datetime.fromisoformat(data.sale_date).strftime("%Y-%m-%d")
-    except:
-        try:
-            # If frontend sends: "11/18/2025"
-            sale_date_clean = datetime.strptime(data.sale_date, "%m/%d/%Y").strftime("%Y-%m-%d")
-        except:
-            print(data.sale_date)
-            return {"error": "Invalid date format. Expected YYYY-MM-DD."}
-
-    input_vector = [[
-        sale_date_clean,
-        data.property_type,
-        data.old_new,
-        data.duration,
-        data.town_city,
-        data.district,
-        data.county,
-        data.record_status___monthly_file_only,
-        data.sale_year
-    ]]
-
     try:
-        prediction = model.predict(input_vector)
+        prediction = model.predict(input_df) # Pass the prepared DataFrame
         return {"prediction": float(prediction[0])}
 
     except Exception as e:
-        print("🔥 Prediction crashed:", e)
+        # If prediction still crashes, print the DataFrame's info for better debugging
+        print("🔥 Prediction crashed with input DataFrame info:")
+        input_df.info()
+        print("🔥 Prediction error:", e)
+        # Return a better error structure
         return {"error": str(e)}

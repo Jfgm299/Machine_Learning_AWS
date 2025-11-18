@@ -1,4 +1,4 @@
-import { useState } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -9,8 +9,45 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
+// --- Utility Function ---
+
+/**
+ * Extracts the year (YYYY) and month (MM) as numbers from a date string in YYYY-MM-DD format.
+ * @param dateString The date string in "YYYY-MM-DD" format.
+ * @returns An object containing the year and month as numbers (0 for invalid/missing).
+ */
+const extractDateComponents = (dateString: string): { sale_year: number; sale_month: number } => {
+  if (dateString && dateString.includes("-")) {
+    const parts = dateString.split("-");
+    const yearNumber = parseInt(parts[0], 10);
+    const monthNumber = parseInt(parts[1], 10);
+
+    return {
+      sale_year: isNaN(yearNumber) ? 0 : yearNumber,
+      sale_month: isNaN(monthNumber) ? 0 : monthNumber,
+    };
+  }
+
+  return { sale_year: 0, sale_month: 0 };
+};
+
+// --- Form Data Interface for Type Safety ---
+
+interface FormData {
+  sale_date: string;
+  property_type: string;
+  old_new: string;
+  duration: string;
+  town_city: string;
+  district: string;
+  county: string;
+  sale_year: number;
+  sale_month: number;
+}
+
+
 export default function HousePredictionModal() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({ // Use the interface here
     sale_date: "",
     property_type: "",
     old_new: "",
@@ -18,32 +55,75 @@ export default function HousePredictionModal() {
     town_city: "",
     district: "",
     county: "",
-    record_status___monthly_file_only: "",
-    sale_year: "",
+    sale_year: 0,
+    sale_month: 0
   })
 
-  const [prediction, setPrediction] = useState<number | null>(null)
+  const [prediction, setPrediction] = useState<number>()
 
+  /**
+   * Handles form input changes. If the changed field is 'sale_date', 
+   * it automatically calculates and updates 'sale_year'.
+   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target;
+    
+    // Create the base update object with the current field's new value
+    const baseUpdate = { [name]: value };
+
+    let dateUpdates = {};
+    
+    // 1. --- SPECIAL LOGIC FOR sale_date ---
+    if (name === "sale_date") {
+      const { sale_year, sale_month } = extractDateComponents(value);
+      dateUpdates = { sale_year, sale_month };
+    }
+
+    // Merge all updates (base update + year/month updates if applicable)
+    const newFormData = {
+      ...formData,
+      ...baseUpdate,
+      ...dateUpdates
+    };
+
+    setFormData(newFormData);
+    // Log the correct, updated object
+    console.log("Updated Form Data:", newFormData);
   }
 
   const handlePredict = async () => {
     try {
         console.log("Form Data Submitted:", formData);
-        const formattedDate = new Date(formData.sale_date).toISOString().split("T")[0];
-
+        
+        console.log(formData)
 
       const response = await fetch("http://localhost:8000/predict", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        // The formData now includes sale_year as numbers
         body: JSON.stringify(formData),
       })
+      
+      if (!response.ok) {
+        // Attempt to parse error response for better logging
+        const errorData = await response.json();
+        console.error("API Error Response:", errorData);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || response.statusText}`);
+      }
 
       const data = await response.json()
-      setPrediction(data.prediction)
+      
+      // Check if the prediction data is a valid number before setting state
+      if (typeof data.prediction === 'number' && !isNaN(data.prediction)) {
+        setPrediction(data.prediction)
+      } else {
+        console.error("Prediction result was invalid or NaN:", data);
+        console.log(data)
+        setPrediction(0);
+      }
+
     } catch (error) {
       console.error("Prediction error:", error)
     }
@@ -72,12 +152,14 @@ export default function HousePredictionModal() {
             onChange={handleChange}
             className="border p-2 rounded"
             placeholder="Sale Date"
+            value={formData.sale_date} 
           />
 
           <select
             name="property_type"
             onChange={handleChange}
             className="border p-2 rounded"
+            value={formData.property_type} 
           >
             <option value="">Property Type</option>
             <option value="D">Detached</option>
@@ -91,6 +173,7 @@ export default function HousePredictionModal() {
             name="old_new"
             onChange={handleChange}
             className="border p-2 rounded"
+            value={formData.old_new}
           >
             <option value="">Old/New</option>
             <option value="Y">New</option>
@@ -101,6 +184,7 @@ export default function HousePredictionModal() {
             name="duration"
             onChange={handleChange}
             className="border p-2 rounded"
+            value={formData.duration}
           >
             <option value="">Duration</option>
             <option value="F">Freehold</option>
@@ -112,6 +196,7 @@ export default function HousePredictionModal() {
             onChange={handleChange}
             placeholder="Town / City"
             className="border p-2 rounded"
+            value={formData.town_city}
           />
 
           <input
@@ -119,6 +204,7 @@ export default function HousePredictionModal() {
             onChange={handleChange}
             placeholder="District"
             className="border p-2 rounded"
+            value={formData.district}
           />
 
           <input
@@ -126,21 +212,7 @@ export default function HousePredictionModal() {
             onChange={handleChange}
             placeholder="County"
             className="border p-2 rounded"
-          />
-
-          <input
-            name="record_status___monthly_file_only"
-            onChange={handleChange}
-            placeholder="Record Status"
-            className="border p-2 rounded"
-          />
-
-          <input
-            name="sale_year"
-            type="number"
-            onChange={handleChange}
-            placeholder="Sale Year"
-            className="border p-2 rounded"
+            value={formData.county}
           />
         </div>
 
@@ -150,7 +222,7 @@ export default function HousePredictionModal() {
         </Button>
 
         {/* Show prediction */}
-        {prediction !== null && (
+        {prediction !== undefined && (
           <div className="mt-4 p-3 text-lg font-bold bg-green-200 rounded">
             Predicted Price: £{Math.round(prediction).toLocaleString()}
           </div>

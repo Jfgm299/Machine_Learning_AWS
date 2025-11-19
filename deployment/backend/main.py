@@ -109,3 +109,56 @@ def predict(data: InputData):
         print("🔥 Prediction error:", e)
         # Return a better error structure
         return {"error": str(e)}
+
+
+# -------------------------------------------
+# HISTORY ENDPOINT (NEW)
+# -------------------------------------------
+@app.post("/housing/history")
+def predict_history(data: InputData):
+    # 1. Set start year to 1995 (typical start of UK housing records)
+    start_year = 1995
+    
+    # 2. Set end year to the USER'S selected year
+    # Ensure we at least show a small range if they pick a date before 1995
+    end_year = max(start_year + 1, data.sale_year)
+    
+    years = list(range(start_year, end_year + 1))
+
+    # 3. Create batch data
+    batch_data = []
+    for year in years:
+        batch_data.append({
+            'property_type': data.property_type,
+            'old_new': data.old_new,
+            'duration': data.duration,
+            'town_city': data.town_city,
+            'district': data.district,
+            'county': data.county,
+            'sale_year': year,
+            'sale_month': data.sale_month 
+        })
+
+    # 4. Convert to DataFrame & Predict
+    input_df = pd.DataFrame(batch_data)
+    input_df = input_df[PREDICT_COLUMNS]
+
+    for col in CATEGORICAL_COLUMNS:
+        if col in input_df.columns:
+            input_df[col] = input_df[col].astype('category')
+
+    try:
+        predictions = model.predict(input_df)
+        
+        history_result = []
+        for i, year in enumerate(years):
+            history_result.append({
+                "year": year,
+                "price": float(predictions[i])
+            })
+            
+        return {"history": history_result}
+
+    except Exception as e:
+        print(f"🔥 History Prediction error: {e}")
+        return {"error": str(e), "history": []}

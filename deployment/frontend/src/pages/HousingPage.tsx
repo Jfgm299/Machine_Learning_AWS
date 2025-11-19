@@ -1,5 +1,6 @@
 import { useState } from "react";
 import HousePredictionSearchBar from "@/components/searchbar"
+import PredictionPanel from "@/components/predictionPanel";
 import Map from "@/components/map"
 // Note: Card components are not used here, but kept in imports for completeness
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
@@ -25,13 +26,18 @@ interface LocationData {
 
 export default function HousingPage() {
     const [searchCity, setSearchCity] = useState("");
-    
+    const [predictionPrice, setPredictionPrice] = useState<number | null>(undefined); // Use undefined to hide initially
     // ⭐ 1. STATE TO HOLD THE SEARCH BAR'S ADDRESS FILLER FUNCTION
     const [addressFiller, setAddressFiller] = useState<AddressFillerFunction | null>(null);
 
     // Function passed to the SearchBar to capture its internal state setter function
     const handleSetAddressFiller = (fillerFunc: AddressFillerFunction) => {
         setAddressFiller(() => fillerFunc);
+    };
+
+    const handlePredictionMade = (price: number | null) => {
+        // null means loading/clearing; 0 means error; > 0 means success
+        setPredictionPrice(price);
     };
 
     // Function passed to the Map. It receives the geocoded data.
@@ -72,10 +78,12 @@ export default function HousingPage() {
             >
                 <HousePredictionSearchBar 
                     onCityChange={handleCityChange} 
-                    // ⭐ PROP 2: The SearchBar gives us its state setter function here
                     onAddressFill={handleSetAddressFiller} 
+                    onPredictionMade={handlePredictionMade}
                 />
             </div>
+
+            <PredictionPanel prediction={predictionPrice} />
         </div>
     )
 }

@@ -90,6 +90,7 @@ export default function Map({ centerCity, onGeocodeComplete }: MapProps) {
             minZoom: 2, 
             maxZoom: 18,
             zoomControl: false, 
+            dragging: false,
         };
         const zoom = 5;
         const lat = 54.0; // Initial UK center

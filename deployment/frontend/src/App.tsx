@@ -9,7 +9,7 @@ import ElectricityPage from "./pages/ElectricityPage"
 function App() {
   return (
     <Router>
-      <div className="justify-center p-6">
+      <div className="justify-center">
         <NavBar />
 
         <Routes>

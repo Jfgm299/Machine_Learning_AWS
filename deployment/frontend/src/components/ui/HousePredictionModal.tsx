@@ -131,9 +131,9 @@ export default function HousePredictionModal() {
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
+      {/* <DialogTrigger asChild>
         <Button className="mb-4">Predict House Price</Button>
-      </DialogTrigger>
+      </DialogTrigger> */}
 
       <DialogContent className="max-w-lg">
         <DialogHeader>

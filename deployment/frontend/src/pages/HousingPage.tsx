@@ -1,29 +1,81 @@
+import { useState } from "react";
+import HousePredictionSearchBar from "@/components/searchbar"
+import Map from "@/components/map"
+// Note: Card components are not used here, but kept in imports for completeness
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 
+// Define interfaces for type safety, matching the Map and SearchBar props
+interface AddressData {
+    district: string;
+    county: string;
+}
+
+// Define the type for the function that sets District/County state in the SearchBar
+type AddressFillerFunction = (data: AddressData) => void;
+
+// Define the type for the data returned by the geocoding in the Map
+interface LocationData {
+    displayName: string;
+    district: string;
+    county: string;
+    lat: number;
+    lng: number;
+}
+
+
 export default function HousingPage() {
-  return (
-    <div className="flex justify-center items-start min-h-[calc(100vh-64px)] p-8 bg-slate-50 dark:bg-slate-950">
-      <Card className="w-full max-w-4xl shadow-2xl dark:bg-slate-900 border-blue-500/50">
-        <CardHeader className="bg-blue-500/10 dark:bg-blue-500/20 border-b border-blue-500/30">
-          <CardTitle className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-            Predicción de Precios de Vivienda
-          </CardTitle>
-        </CardHeader>
+    const [searchCity, setSearchCity] = useState("");
+    
+    // ⭐ 1. STATE TO HOLD THE SEARCH BAR'S ADDRESS FILLER FUNCTION
+    const [addressFiller, setAddressFiller] = useState<AddressFillerFunction | null>(null);
 
-        <CardContent className="p-6">
-          <p className="text-xl text-slate-700 dark:text-slate-300">
-            ¡Estás en la página{" "}
-            <span className="font-mono bg-blue-100 dark:bg-blue-900 p-1 rounded">
-              /housing
-            </span>
-            !
-          </p>
+    // Function passed to the SearchBar to capture its internal state setter function
+    const handleSetAddressFiller = (fillerFunc: AddressFillerFunction) => {
+        setAddressFiller(() => fillerFunc);
+    };
 
-          <p className="mt-4 text-slate-500 dark:text-slate-400">
-            Aquí irá el formulario para predecir el precio de una vivienda en el Reino Unido.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  )
+    // Function passed to the Map. It receives the geocoded data.
+    const handleGeocodeComplete = (locationData: LocationData | null) => {
+        if (locationData && addressFiller) {
+            // ⭐ 2. USE THE SAVED FILLER FUNCTION TO UPDATE THE SEARCH BAR'S STATE
+            addressFiller({
+                district: locationData.district,
+                county: locationData.county,
+            });
+            console.log(`Geocode success: Auto-filling District: ${locationData.district}, County: ${locationData.county}`);
+        } else if (!locationData) {
+            // If geocoding fails, clear the fields
+            if (addressFiller) {
+                addressFiller({ district: "", county: "" });
+            }
+            console.log("Geocoding failed or returned no results for the city.");
+        }
+    };
+
+    const handleCityChange = (city: string) => {
+        setSearchCity(city);
+    };
+
+    return (
+        <div className="relative flex justify-center items-center h-screen w-screen bg-slate-50 dark:bg-slate-950">
+            
+            {/* 1. Map Component (Background) */}
+            <Map 
+                centerCity={searchCity} 
+                // ⭐ PROP 1: The Map reports its results here
+                onGeocodeComplete={handleGeocodeComplete}
+            /> 
+
+            {/* 2. The Search Bar Container (Foreground) */}
+            <div 
+                className="absolute top-5 z-40 w-full max-w-7xl px-5"
+            >
+                <HousePredictionSearchBar 
+                    onCityChange={handleCityChange} 
+                    // ⭐ PROP 2: The SearchBar gives us its state setter function here
+                    onAddressFill={handleSetAddressFiller} 
+                />
+            </div>
+        </div>
+    )
 }

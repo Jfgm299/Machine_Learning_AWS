@@ -26,7 +26,7 @@ def read_root():
 # LOAD MODEL
 # -------------------------------------------
 # IMPORTANT: This must point to your actual pipeline path
-model = joblib.load("./../../data/trained_models/housing/housing_pipeline_v4_xgboost.pkl")
+model = joblib.load("./../../data/trained_models/housing/dtr_baseline_model.joblib")
 print(model.feature_names_in_)
 
 # Define the expected order and types for the DataFrame input

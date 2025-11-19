@@ -45,9 +45,9 @@ export default function PredictionPanel({ prediction }: PredictionPanelProps) {
 
     <Drawer open={open} onOpenChange={setOpen}>
 
-      <DrawerContent className="p-6 bg-white text-black shadow-xl">
+      <DrawerContent className="p-4 bg-white text-black shadow-xl">
 
-        <button onClick={() => setOpen(false)} className="absolute right-4 top-4 p-2 hover:opacity-70">
+        <button onClick={() => setOpen(false)} className="absolute right-4 top-2 p-2 hover:opacity-70">
 
             <X className="h-5 w-5" />
 
@@ -56,7 +56,7 @@ export default function PredictionPanel({ prediction }: PredictionPanelProps) {
 
         <div className="grid grid-cols-3 gap-4 py-6 text-center">
 
-          <div className="p-4 rounded-xl border">
+          <div className="p-20 rounded-xl border">
 
             {prediction === null && <p>Loading...</p>}
 
@@ -69,14 +69,14 @@ export default function PredictionPanel({ prediction }: PredictionPanelProps) {
           </div>
 
 
-          <div className="p-4 rounded-xl border">
+          <div className="p-20 rounded-xl border">
 
             <p className="opacity-50">Placeholder A</p>
 
           </div>
 
 
-          <div className="p-4 rounded-xl border">
+          <div className="p-20 rounded-xl border">
 
             <p className="opacity-50">Placeholder B</p>
 

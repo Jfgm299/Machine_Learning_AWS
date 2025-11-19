@@ -1,37 +1,35 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import joblib
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import pandas as pd 
+import os # Importar 'os' para manejar rutas de archivos
 
-app = FastAPI()
+app = FastAPI(
+    title="ML Prediction API",
+    version="1.0.0",
+    description="API para modelos de predicción de Vivienda y Electricidad."
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow all origins (frontend)
+    allow_origins=["*"],  # Permitir todos los orígenes
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # -------------------------------------------
-# ROOT ROUTE
+# GLOBAL CONFIGURATION
 # -------------------------------------------
-@app.get("/")
-def read_root():
-    return {"message": "FastAPI Housing Model is running!"}
+# Rutas de los modelos
+HOUSING_MODEL_PATH = "./../../data/trained_models/housing/housing_pipeline_v4_xgboost.pkl"
+ELECTRICITY_MODEL_PATH = "./../../data/trained_models/electricity/electricity_pipeline.pkl" # Ruta placeholder
+MODELS = {} # Diccionario para almacenar los modelos cargados
 
-# -------------------------------------------
-# LOAD MODEL
-# -------------------------------------------
-# IMPORTANT: This must point to your actual pipeline path
-model = joblib.load("./../../data/trained_models/housing/housing_pipeline_v4_xgboost.pkl")
-print(model.feature_names_in_)
-
-# Define the expected order and types for the DataFrame input
-# NOTE: This list now strictly matches the user's final column list (excluding 'price').
-PREDICT_COLUMNS = [
+# Columnas esperadas por el modelo de VIVIENDA
+HOUSING_PREDICT_COLUMNS = [
     'property_type',
     'old_new',
     'duration',
@@ -42,7 +40,7 @@ PREDICT_COLUMNS = [
     'sale_month'
 ]
 
-CATEGORICAL_COLUMNS = [
+HOUSING_CATEGORICAL_COLUMNS = [
     'property_type',
     'old_new',
     'duration',
@@ -51,11 +49,41 @@ CATEGORICAL_COLUMNS = [
     'county',
 ]
 
+# -------------------------------------------
+# LOAD MODELS (Se ejecuta al iniciar la API)
+# -------------------------------------------
+def load_model(path: str, model_name: str):
+    """Carga un modelo de machine learning si existe."""
+    if os.path.exists(path):
+        try:
+            model = joblib.load(path)
+            MODELS[model_name] = model
+            print(f"✅ Modelo '{model_name}' cargado desde: {path}")
+            # print(f"  -> Features esperadas: {model.feature_names_in_}")
+        except Exception as e:
+            print(f"❌ Error al cargar el modelo '{model_name}' desde {path}: {e}")
+    else:
+        print(f"⚠️ Advertencia: El archivo del modelo '{model_name}' no se encontró en: {path}")
+
+# Cargar los modelos al inicio
+load_model(HOUSING_MODEL_PATH, "housing")
+# load_model(ELECTRICITY_MODEL_PATH, "electricity") # Puedes descomentar esto cuando el modelo esté listo
 
 # -------------------------------------------
-# EXPECTED INPUT FROM REACT FRONTEND
+# ROOT ROUTE
 # -------------------------------------------
-class InputData(BaseModel):
+@app.get("/")
+def read_root():
+    """Ruta raíz de la API."""
+    loaded_models = ", ".join(MODELS.keys()) if MODELS else "Ninguno"
+    return {"message": "FastAPI ML Prediction API está corriendo.", "modelos_cargados": loaded_models}
+
+
+# -------------------------------------------
+# INPUT DATA MODELS (Schemas Pydantic)
+# -------------------------------------------
+# Esquema de entrada para el modelo de VIVIENDA
+class InputDataHousing(BaseModel):
     sale_date: str
     property_type: str
     old_new: str
@@ -66,15 +94,29 @@ class InputData(BaseModel):
     sale_year: int
     sale_month: int  
 
+# Esquema de entrada para el modelo de ELECTRICIDAD (PLACEHOLDER)
+class InputDataElectricity(BaseModel):
+    # Definir los campos necesarios para tu modelo de electricidad cuando lo tengas
+    date: str
+    temperature: float
+    is_weekend: bool
+    # ... otros campos ...
+
 
 # -------------------------------------------
-# PREDICT ENDPOINT
+# HOUSING ENDPOINTS
 # -------------------------------------------
 
-@app.post("/predict")
-def predict(data: InputData):
-    # We use a dictionary structure where the keys match the column names expected by the model.
-    # sale_date is now included as requested by the final column schema.
+@app.post("/housing/predict")
+def predict_housing(data: InputDataHousing):
+    """Realiza una predicción del precio de la vivienda."""
+    
+    if "housing" not in MODELS:
+        raise HTTPException(status_code=503, detail="Modelo de Vivienda no cargado.")
+
+    model = MODELS["housing"]
+
+    # 1. Preparar los datos de entrada
     input_data_dict = {
         'property_type': [data.property_type],
         'old_new': [data.old_new],
@@ -83,29 +125,51 @@ def predict(data: InputData):
         'district': [data.district],
         'county': [data.county],
         'sale_year': [data.sale_year],
-        'sale_month': [data.sale_month]   # <-- ADD THIS
+        'sale_month': [data.sale_month]
     }
 
-    # CONVERT TO PANDAS DATAFRAME
     input_df = pd.DataFrame(input_data_dict)
     
-    # 1. Re-order the columns to match the trained model's feature order
-    input_df = input_df[PREDICT_COLUMNS]
+    # 2. Re-ordenar y castear tipos
+    try:
+        input_df = input_df[HOUSING_PREDICT_COLUMNS]
+    except KeyError as e:
+        # Esto ocurre si el frontend envía un campo incorrecto o faltante
+        raise HTTPException(status_code=400, detail=f"Falta una columna necesaria: {e}. Columnas esperadas: {HOUSING_PREDICT_COLUMNS}")
 
-    # 2. Explicitly cast known categorical columns to 'category' type
-    for col in CATEGORICAL_COLUMNS:
+
+    for col in HOUSING_CATEGORICAL_COLUMNS:
         if col in input_df.columns:
-            # Cast the type to 'category', which the pipeline's encoders prefer
+            # Castear a 'category'
             input_df[col] = input_df[col].astype('category')
         
     try:
-        prediction = model.predict(input_df) # Pass the prepared DataFrame
+        # 3. Predecir
+        prediction = model.predict(input_df)
+        # Devolver el valor de la predicción
         return {"prediction": float(prediction[0])}
 
     except Exception as e:
-        # If prediction still crashes, print the DataFrame's info for better debugging
-        print("🔥 Prediction crashed with input DataFrame info:")
-        input_df.info()
-        print("🔥 Prediction error:", e)
-        # Return a better error structure
-        return {"error": str(e)}
+        print("🔥 La predicción de Vivienda falló con error:", e)
+        # Devolver un error HTTP si la predicción falla internamente
+        raise HTTPException(status_code=500, detail=f"Error interno del modelo de predicción: {e}")
+
+# -------------------------------------------
+# ELECTRICITY ENDPOINTS (PLACEHOLDER)
+# -------------------------------------------
+
+@app.post("/electricity/predict")
+def predict_electricity(data: InputDataElectricity):
+    """Realiza una predicción del consumo de electricidad."""
+    
+    # Aquí irá la lógica para cargar y usar el modelo de electricidad.
+    if "electricity" not in MODELS:
+        # Simplemente devolvemos un mensaje de error 503 (Servicio no disponible)
+        # hasta que el modelo esté implementado.
+        raise HTTPException(status_code=503, detail="Modelo de Electricidad no implementado o no cargado.")
+        
+    # Lógica futura:
+    # model = MODELS["electricity"]
+    # input_df = pd.DataFrame({...})
+    # prediction = model.predict(input_df)
+    # return {"prediction": float(prediction[0])}

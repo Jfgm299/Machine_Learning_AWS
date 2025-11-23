@@ -47,3 +47,5 @@ build/
 # Optionally add a .gitkeep file in empty folders so Git tracks them
 
 !/data/trained_models/electricity/ND_model.pkl
+data/trained_models/electricity/dtr_baseline_model.joblib
+data/trained_models/electricity/ND_model.pkl

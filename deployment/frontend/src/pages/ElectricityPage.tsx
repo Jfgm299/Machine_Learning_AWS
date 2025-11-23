@@ -349,7 +349,7 @@ export default function ElectricityPage() {
                         <LineChart data={monthlyData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="date" tickFormatter={shortDate} />
-                          <YAxis domain={[25000, "dataMax" + 2000]} />  {/* <-- Cambio aquí */}
+                          <YAxis domain={[25000, 50000]} width={80}/>  {/* <-- Cambio aquí */}
                           <Tooltip labelFormatter={(label) => `Date: ${label}`} />
                           <Line type="monotone" dataKey="mean" stroke="#ff385c" strokeWidth={2} dot={false} />
                         </LineChart>

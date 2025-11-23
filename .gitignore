@@ -45,3 +45,5 @@ build/
 !/data/housing/processed/.gitkeep
 
 # Optionally add a .gitkeep file in empty folders so Git tracks them
+
+!/data/trained_models/electricity/ND_model.pkl

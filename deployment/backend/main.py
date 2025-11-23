@@ -190,3 +190,82 @@ def predict_electricity(data: ElectricityInput):
     pred_value = float(prediction_df['prediction_label'].iloc[0])
 
     return {"prediction": pred_value}
+
+
+
+
+
+
+
+
+
+
+# -------------------------------------------
+# BULK / MONTHLY PREDICTIONS ENDPOINT
+# -------------------------------------------
+from calendar import monthrange
+from typing import List, Dict
+
+@app.post("/electricity/monthly")
+def electricity_monthly(data: ElectricityInput):
+    """
+    Devuelve la media diaria de ND para cada día del mes de la fecha enviada.
+    - Para cada día del mes: genera 48 filas (periodos 1..48) usando los demás campos tal cual,
+      predice con el modelo y calcula la media de las 48 predicciones.
+    - Retorna: {"monthly": [{"date": "YYYY-MM-DD", "mean": 12345.67}, ...]}
+    """
+    try:
+        # Parse date and get year/month
+        date_obj = pd.to_datetime(data.SETTLEMENT_DATE)
+        year = date_obj.year
+        month = date_obj.month
+
+        # Number of days in that month
+        ndays = monthrange(year, month)[1]  # e.g. 28..31
+
+        results: List[Dict] = []
+
+        for day in range(1, ndays + 1):
+            # Build DataFrame for that day: 48 settlement periods
+            rows = []
+            for period in range(1, 49):
+                rows.append({
+                    'SETTLEMENT_DATE': pd.to_datetime(f"{year}-{month:02d}-{day:02d}"),
+                    'SETTLEMENT_PERIOD': period,
+                    'TSD': data.TSD,
+                    'EMBEDDED_WIND_GENERATION': data.EMBEDDED_WIND_GENERATION,
+                    'EMBEDDED_WIND_CAPACITY': data.EMBEDDED_WIND_CAPACITY,
+                    'EMBEDDED_SOLAR_GENERATION': data.EMBEDDED_SOLAR_GENERATION,
+                    'EMBEDDED_SOLAR_CAPACITY': data.EMBEDDED_SOLAR_CAPACITY,
+                    'NON_BM_STOR': data.NON_BM_STOR,
+                    'PUMP_STORAGE_PUMPING': data.PUMP_STORAGE_PUMPING,
+                    'SCOTTISH_TRANSFER': data.SCOTTISH_TRANSFER,
+                    'IFA_FLOW': data.IFA_FLOW,
+                })
+
+            df_day = pd.DataFrame(rows)
+            # add derived date fields as in training
+            df_day['Year'] = df_day['SETTLEMENT_DATE'].dt.year
+            df_day['Month'] = df_day['SETTLEMENT_DATE'].dt.month
+            df_day['Day'] = df_day['SETTLEMENT_DATE'].dt.day
+            df_day['Weekday'] = df_day['SETTLEMENT_DATE'].dt.weekday
+
+            df_day_model = df_day.drop(columns=['SETTLEMENT_DATE'])
+
+            # bulk predict
+            pred_df = predict_model(electricity_model, df_day_model)
+
+            # prediction label column is 'prediction_label'
+            preds = pred_df['prediction_label'].values
+            mean_val = float(preds.mean())
+
+            results.append({
+                "date": f"{year}-{month:02d}-{day:02d}",
+                "mean": mean_val
+            })
+
+        return {"monthly": results}
+
+    except Exception as e:
+        print("🔥 electricity_monthly error:", e)
+        return {"error": str(e), "monthly": []}

@@ -14,6 +14,16 @@ import {
   SelectItem
 } from "@/components/ui/select";
 
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid
+} from "recharts";
+
 interface ElectricityInput {
   SETTLEMENT_DATE: string | null;
   SETTLEMENT_PERIOD: number | null;
@@ -32,17 +42,18 @@ interface ElectricityInput {
 
 export default function ElectricityPage() {
   const [started, setStarted] = useState(false);
+  const [prediction, setPrediction] = useState<number | null>(null);
+  const [monthlyData, setMonthlyData] = useState<{ date: string; mean: number }[]>([]);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
 
   const [inputs, setInputs] = useState<ElectricityInput>({
     SETTLEMENT_DATE: null,
     SETTLEMENT_PERIOD: null,
     TSD: 0,
-
     EMBEDDED_WIND_GENERATION: 0,
     EMBEDDED_WIND_CAPACITY: 0,
     EMBEDDED_SOLAR_GENERATION: 0,
     EMBEDDED_SOLAR_CAPACITY: 0,
-
     NON_BM_STOR: 0,
     PUMP_STORAGE_PUMPING: 0,
     SCOTTISH_TRANSFER: 0,
@@ -87,36 +98,58 @@ export default function ElectricityPage() {
     }
   };
 
-  // ⬇️ ⬇️ ⬇️ **AQUÍ SOLO AÑADÍ LA LLAMADA AL BACKEND** ⬇️ ⬇️ ⬇️
-
+  // Fetch single prediction + monthly means
   const handleCalculate = async () => {
     const finalObject = { ...inputs };
     console.log("FINAL OBJECT →", finalObject);
 
-    if (!finalObject.SETTLEMENT_DATE || !finalObject.SETTLEMENT_PERIOD) {
+    if (!finalObject.SETTLEMENT_DATE || finalObject.SETTLEMENT_PERIOD === null) {
       console.error("❌ Missing required fields: date or period");
       return;
     }
 
     try {
-      const response = await fetch("http://localhost:8000/electricity/predict", {
+      // 1) Single prediction (same as before)
+      const resp1 = await fetch("http://localhost:8000/electricity/predict", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(finalObject),
       });
+      const data1 = await resp1.json();
+      console.log("⚡ PREDICTED ND →", data1.prediction);
+      setPrediction(data1.prediction);
 
-      const data = await response.json();
+      // 2) Monthly averages (daily mean across the month)
+      setLoadingMonthly(true);
+      const resp2 = await fetch("http://localhost:8000/electricity/monthly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalObject),
+      });
+      const data2 = await resp2.json();
+      if (data2.monthly) {
+        // convert to recharts-friendly array: {date, mean}
+        setMonthlyData(data2.monthly.map((d: any) => ({ date: d.date, mean: Number(d.mean) })));
+      } else {
+        setMonthlyData([]);
+      }
+      setLoadingMonthly(false);
 
-      console.log("⚡ PREDICTED ND →", data.prediction);
     } catch (error) {
       console.error("🔥 Error calling backend:", error);
+      setLoadingMonthly(false);
     }
   };
 
-  // ⬆️ ⬆️ ⬆️ **FIN DE LA ÚNICA MODIFICACIÓN** ⬆️ ⬆️ ⬆️
-
+  // Small helper to format date labels (MM-DD)
+  const shortDate = (iso: string) => {
+    try {
+      const dt = new Date(iso + "T00:00:00");
+      return `${dt.getDate()}/${dt.getMonth() + 1}`;
+    } catch {
+      return iso;
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-screen bg-slate-50 dark:bg-slate-950">
@@ -134,7 +167,8 @@ export default function ElectricityPage() {
       )}
 
       {started && (
-        <Card className="w-full max-w-5xl mt-6 border border-slate-300 dark:border-slate-700 shadow-xl mb-10">
+        <>
+        <Card className="w-full max-w-5xl mt-6 border border-slate-300 dark:border-slate-700 shadow-xl mb-6">
           <CardHeader>
             <CardTitle className="text-2xl font-semibold">
               Input Parameters
@@ -283,6 +317,51 @@ export default function ElectricityPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Prediction Card (shows after prediction) */}
+        {prediction !== null && (
+          <Card className="w-full max-w-5xl mb-10 border border-slate-300 dark:border-slate-700 shadow-lg">
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-4 items-stretch">
+                {/* Left: big number */}
+                <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-muted-foreground">Predicted ND</div>
+                    <div className="mt-2 text-5xl md:text-6xl font-extrabold tracking-tight text-rose-600 dark:text-rose-400">
+                      {prediction.toFixed(0)}
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">MW</div>
+                  </div>
+                </div>
+
+                {/* Right: line chart for monthly means */}
+                <div className="flex-1 p-4 rounded-lg bg-white dark:bg-slate-900">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold">Monthly trend (daily mean)</h4>
+                    {loadingMonthly && <div className="text-sm text-muted-foreground">loading…</div>}
+                  </div>
+
+                  {monthlyData.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">No monthly data</div>
+                  ) : (
+                    <div style={{ width: "100%", height: 220 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={monthlyData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" tickFormatter={shortDate} />
+                          <YAxis domain={[25000, "dataMax" + 2000]} />  {/* <-- Cambio aquí */}
+                          <Tooltip labelFormatter={(label) => `Date: ${label}`} />
+                          <Line type="monotone" dataKey="mean" stroke="#ff385c" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        </>
       )}
     </div>
   );

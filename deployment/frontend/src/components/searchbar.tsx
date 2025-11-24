@@ -102,7 +102,7 @@ export default function HousePredictionSearchBar({ onCityChange, onAddressFill, 
       dateUpdates = { 
         sale_year,
         sale_month,
-        date_of_transfer: value // 👈 send both fields
+        date_of_transfer: value
       };
     }
     const newFormData = { ...formData, ...baseUpdate, ...dateUpdates };
@@ -113,6 +113,8 @@ export default function HousePredictionSearchBar({ onCityChange, onAddressFill, 
     }
   };
 
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL; // ✅ usa env
+
   const handlePredict = async () => {
     onPredictionMade(null, []); // Reset
 
@@ -120,12 +122,12 @@ export default function HousePredictionSearchBar({ onCityChange, onAddressFill, 
       console.log("Form Data Submitted:", formData);
 
       const [predResponse, histResponse] = await Promise.all([
-        fetch("http://localhost:8000/housing/predict", {
+        fetch(`${BACKEND_URL}/housing/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
         }),
-        fetch("http://localhost:8000/housing/history", {
+        fetch(`${BACKEND_URL}/housing/history`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),

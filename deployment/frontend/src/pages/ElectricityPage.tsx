@@ -67,17 +67,14 @@ export default function ElectricityPage() {
     windCap: false,
   });
 
-  // Log every update
   useEffect(() => {
     console.log("🔄 Updated Electricity Inputs:", JSON.stringify(inputs, null, 2));
   }, [inputs]);
 
   const updateField = (field: keyof ElectricityInput, value: any) => {
     const newObject = { ...inputs, [field]: value };
-
     console.log("🔄 Input Changed → new backend object:");
     console.log(JSON.stringify(newObject, null, 2));
-
     setInputs(newObject);
   };
 
@@ -90,15 +87,12 @@ export default function ElectricityPage() {
 
     if (toggles[toggleKey] === true) {
       const newObject = { ...inputs, [field]: 0 };
-
       console.log("🔄 Toggle OFF → backend object:");
       console.log(JSON.stringify(newObject, null, 2));
-
       setInputs(newObject);
     }
   };
 
-  // Fetch single prediction + monthly means
   const handleCalculate = async () => {
     const finalObject = { ...inputs };
     console.log("FINAL OBJECT →", finalObject);
@@ -109,8 +103,10 @@ export default function ElectricityPage() {
     }
 
     try {
-      // 1) Single prediction (same as before)
-      const resp1 = await fetch("http://localhost:8000/electricity/predict", {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+      // 1) Single prediction
+      const resp1 = await fetch(`${backendUrl}/electricity/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(finalObject),
@@ -119,16 +115,15 @@ export default function ElectricityPage() {
       console.log("⚡ PREDICTED ND →", data1.prediction);
       setPrediction(data1.prediction);
 
-      // 2) Monthly averages (daily mean across the month)
+      // 2) Monthly averages
       setLoadingMonthly(true);
-      const resp2 = await fetch("http://localhost:8000/electricity/monthly", {
+      const resp2 = await fetch(`${backendUrl}/electricity/monthly`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(finalObject),
       });
       const data2 = await resp2.json();
       if (data2.monthly) {
-        // convert to recharts-friendly array: {date, mean}
         setMonthlyData(data2.monthly.map((d: any) => ({ date: d.date, mean: Number(d.mean) })));
       } else {
         setMonthlyData([]);
@@ -141,7 +136,6 @@ export default function ElectricityPage() {
     }
   };
 
-  // Small helper to format date labels (MM-DD)
   const shortDate = (iso: string) => {
     try {
       const dt = new Date(iso + "T00:00:00");
@@ -153,13 +147,11 @@ export default function ElectricityPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-screen bg-slate-50 dark:bg-slate-950">
-
       {!started && (
         <div className="flex flex-col items-center gap-4">
           <h1 className="text-4xl font-bold text-slate-800 dark:text-white">
             National Demand Calculator
           </h1>
-
           <Button className="px-6 py-3 text-lg" onClick={() => setStarted(true)}>
             Start
           </Button>
@@ -178,10 +170,7 @@ export default function ElectricityPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-6">
-                
-                {/* SETTLEMENT DATE, SETTLEMENT PERIOD, TSD */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  
                   <div className="flex flex-col space-y-2">
                     <Label>Settlement Date</Label>
                     <Input
@@ -190,7 +179,6 @@ export default function ElectricityPage() {
                       onChange={(e) => updateField("SETTLEMENT_DATE", e.target.value)}
                     />
                   </div>
-                  
                   <div className="flex flex-col space-y-2">
                     <Label>Settlement Period</Label>
                     <Select
@@ -208,7 +196,6 @@ export default function ElectricityPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
                   <div className="flex flex-col space-y-2">
                     <Label>TSD</Label>
                     <Input
@@ -219,10 +206,8 @@ export default function ElectricityPage() {
                   </div>
                 </div>
 
-                {/* Generations + Capacity */}
                 <div className="border rounded-lg p-4 bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                   <h3 className="font-bold mb-3">Generations</h3>
-
                   <div className="flex items-center gap-3 mb-2">
                     <Checkbox
                       checked={toggles.solarGen}
@@ -237,7 +222,6 @@ export default function ElectricityPage() {
                       onChange={(e) => updateField("EMBEDDED_SOLAR_GENERATION", Number(e.target.value))}
                     />
                   )}
-
                   <div className="flex items-center gap-3 mb-2">
                     <Checkbox
                       checked={toggles.windGen}
@@ -252,9 +236,7 @@ export default function ElectricityPage() {
                       onChange={(e) => updateField("EMBEDDED_WIND_GENERATION", Number(e.target.value))}
                     />
                   )}
-
                   <h4 className="font-semibold mt-3 mb-2">Capacity</h4>
-
                   <div className="flex items-center gap-3 mb-2">
                     <Checkbox
                       checked={toggles.solarCap}
@@ -269,7 +251,6 @@ export default function ElectricityPage() {
                       onChange={(e) => updateField("EMBEDDED_SOLAR_CAPACITY", Number(e.target.value))}
                     />
                   )}
-
                   <div className="flex items-center gap-3 mb-2">
                     <Checkbox
                       checked={toggles.windCap}
@@ -287,7 +268,6 @@ export default function ElectricityPage() {
                 </div>
               </div>
 
-              {/* Others */}
               <div className="border rounded-lg p-4 bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <h3 className="font-bold mb-4">Others</h3>
                 {[
@@ -318,12 +298,10 @@ export default function ElectricityPage() {
           </CardContent>
         </Card>
 
-        {/* Prediction Card (shows after prediction) */}
         {prediction !== null && (
           <Card className="w-full max-w-5xl mb-10 border border-slate-300 dark:border-slate-700 shadow-lg">
             <CardContent>
               <div className="flex flex-col md:flex-row gap-4 items-stretch">
-                {/* Left: big number */}
                 <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 rounded-lg">
                   <div className="text-center">
                     <div className="text-sm font-medium text-muted-foreground">Predicted ND</div>
@@ -334,7 +312,6 @@ export default function ElectricityPage() {
                   </div>
                 </div>
 
-                {/* Right: line chart for monthly means */}
                 <div className="flex-1 p-4 rounded-lg bg-white dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-semibold">Monthly trend (daily mean)</h4>
@@ -349,7 +326,7 @@ export default function ElectricityPage() {
                         <LineChart data={monthlyData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="date" tickFormatter={shortDate} />
-                          <YAxis domain={[25000, 50000]} width={80}/>  {/* <-- Cambio aquí */}
+                          <YAxis domain={[25000, 50000]} width={80}/>
                           <Tooltip labelFormatter={(label) => `Date: ${label}`} />
                           <Line type="monotone" dataKey="mean" stroke="#ff385c" strokeWidth={2} dot={false} />
                         </LineChart>

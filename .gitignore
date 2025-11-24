@@ -49,3 +49,19 @@ build/
 !/data/trained_models/electricity/ND_model.pkl
 data/trained_models/electricity/dtr_baseline_model.joblib
 data/trained_models/electricity/ND_model.pkl
+
+
+# ==========================
+# PYTHON & BACKEND IGNORES
+# ==========================
+
+# 1. Cache de Python (se genera automáticamente y ensucia el repo)
+__pycache__/
+*.py[cod]
+
+# 2. Variables de Entorno (SEGURIDAD CRÍTICA: Contiene claves privadas)
+.env
+
+# 3. Logs del sistema (Archivos de registro)
+*.log
+deployment/backend/logs.log

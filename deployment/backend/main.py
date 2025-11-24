@@ -7,6 +7,7 @@ import joblib
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import pandas as pd
+from pycaret.regression import load_model, predict_model
 
 # PyCaret
 from pycaret.regression import load_model, predict_model
@@ -41,15 +42,24 @@ def read_root():
 
 
 # Load housing model + encoder
-# 3. Usar rutas del .env
+# 1. Use the .env path (Make sure your .env has the path WITHOUT .pkl if using load_model, 
+#    or WITH .pkl if using joblib. PyCaret is smart, but let's be explicit).
 HOUSING_PATH = os.getenv("HOUSING_MODEL_PATH")
 
-if not HOUSING_PATH or not os.path.exists(HOUSING_PATH):
-    raise FileNotFoundError(f"❌ No se encontró el modelo de Housing en: {HOUSING_PATH}")
+# 2. Check if file exists (PyCaret adds .pkl automatically, so we check for path + '.pkl')
+if not os.path.exists(HOUSING_PATH + '.pkl'):
+    print(f"⚠️ Warning: Could not find {HOUSING_PATH}.pkl")
 
-model = joblib.load(HOUSING_PATH)
-print(f"✅ Housing model loaded from: {HOUSING_PATH}")
-# print(model.feature_names_in_) 
+print(f"⏳ Loading model from {HOUSING_PATH}...")
+
+# 3. USE PYCARET LOAD_MODEL (Not joblib)
+# This handles the pipeline dependencies better
+try:
+    model = load_model(HOUSING_PATH)
+    print("✅ Model loaded successfully!")
+except Exception as e:
+    print(f"❌ Failed to load model: {e}")
+    raise e 
 
 PREDICT_COLUMNS = [
     'sale_year', 'property_type', 'old_new', 'duration', 

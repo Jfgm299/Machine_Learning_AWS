@@ -5,6 +5,7 @@ import HousePredictionModal from "@/components/ui/HousePredictionModal"
 // Páginas nuevas
 import HousingPage from "./pages/HousingPage"
 import ElectricityPage from "./pages/ElectricityPage"
+import InfoPage from "./pages/info"
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/" element={<HousePredictionModal />} />
           <Route path="/housing" element={<HousingPage />} />
           <Route path="/electricity" element={<ElectricityPage />} />
+          <Route path="/info" element={<InfoPage />} />
         </Routes>
       </div>
     </Router>

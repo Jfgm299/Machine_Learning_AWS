@@ -26,7 +26,7 @@ interface LocationData {
 
 export default function HousingPage() {
     const [searchCity, setSearchCity] = useState("");
-    const [predictionPrice, setPredictionPrice] = useState<number | null>(undefined);
+    const [predictionPrice, setPredictionPrice] = useState<number | null>();
     
     // ⭐ 2. Use local type
     const [priceHistory, setPriceHistory] = useState<HistoryDataPoint[]>([]); 

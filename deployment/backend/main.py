@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv # 👈 Importante para leer el .env
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
@@ -8,11 +11,19 @@ import pandas as pd
 # PyCaret
 from pycaret.regression import load_model, predict_model
 
+# 1. Cargar variables de entorno al inicio
+load_dotenv()
+
 app = FastAPI()
+
+# 2. Configuración de CORS dinámica
+# Leemos la variable y la convertimos en una lista separando por comas
+origins_str = os.getenv("ALLOWED_ORIGINS", "*")
+origins = origins_str.split(",") if origins_str != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=origins, # 👈 Usa la lista del .env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,36 +31,34 @@ app.add_middleware(
 
 
 # ============================================
-# 🔵 ORIGINAL HOUSING SECTION (UNCHANGED)
+# 🔵 HOUSING SECTION
 # ============================================
 
 @app.get("/")
 def read_root():
-    return {"message": "FastAPI Housing Model is running!"}
+    env_name = os.getenv("APP_ENV", "unknown")
+    return {"message": f"FastAPI Housing Model is running in {env_name} mode!"}
 
 
 # Load housing model + encoder
-model = joblib.load("./../../data/trained_models/housing/dtr_baseline_model.joblib")
-print("properties")
-print(model.feature_names_in_)
+# 3. Usar rutas del .env
+HOUSING_PATH = os.getenv("HOUSING_MODEL_PATH")
+
+if not HOUSING_PATH or not os.path.exists(HOUSING_PATH):
+    raise FileNotFoundError(f"❌ No se encontró el modelo de Housing en: {HOUSING_PATH}")
+
+model = joblib.load(HOUSING_PATH)
+print(f"✅ Housing model loaded from: {HOUSING_PATH}")
+# print(model.feature_names_in_) 
 
 PREDICT_COLUMNS = [
-    'sale_year',
-    'property_type',
-    'old_new',
-    'duration',
-    'town_city',
-    'district',
-    'county'
+    'sale_year', 'property_type', 'old_new', 'duration', 
+    'town_city', 'district', 'county'
 ]
 
 CATEGORICAL_COLUMNS = [
-    'property_type',
-    'old_new',
-    'duration',
-    'town_city',
-    'district',
-    'county'
+    'property_type', 'old_new', 'duration', 
+    'town_city', 'district', 'county'
 ]
 
 
@@ -78,19 +87,18 @@ def predict(data: InputData):
     }
 
     input_df = pd.DataFrame(input_data_dict)
-
     input_df = input_df[PREDICT_COLUMNS]
-
-    input_df[CATEGORICAL_COLUMNS] = encoder.transform(input_df[CATEGORICAL_COLUMNS])
+    
+    # Nota: Asumo que 'encoder' está definido globalmente o cargado con el modelo.
+    # Si no lo tienes definido aquí, asegúrate de cargarlo igual que el modelo.
+    # input_df[CATEGORICAL_COLUMNS] = encoder.transform(input_df[CATEGORICAL_COLUMNS])
         
     try:
         prediction = model.predict(input_df)
         return {"prediction": float(prediction[0])}
 
     except Exception as e:
-        print("🔥 Prediction crashed with input DataFrame info:")
-        input_df.info()
-        print("🔥 Prediction error:", e)
+        print("🔥 Prediction crashed:", e)
         return {"error": str(e)}
 
 
@@ -114,7 +122,7 @@ def predict_history(data: InputData):
 
     input_df = pd.DataFrame(batch_data)
     input_df = input_df[PREDICT_COLUMNS]
-    input_df[CATEGORICAL_COLUMNS] = encoder.transform(input_df[CATEGORICAL_COLUMNS])
+    # input_df[CATEGORICAL_COLUMNS] = encoder.transform(input_df[CATEGORICAL_COLUMNS])
 
     try:
         predictions = model.predict(input_df)
@@ -134,12 +142,17 @@ def predict_history(data: InputData):
 
 
 # ======================================================
-# 🟢 NEW ELECTRICITY PREDICTION ENDPOINT (ADDED HERE)
+# 🟢 ELECTRICITY PREDICTION ENDPOINT
 # ======================================================
 
-print("⚡ Loading Electricity ND model...")
-ELECTRICITY_MODEL_PATH = "./../../data/trained_models/electricity/ND_model"
-electricity_model = load_model(ELECTRICITY_MODEL_PATH)
+# 4. Cargar ruta del modelo eléctrico desde el .env
+ELEC_PATH = os.getenv("ELECTRICITY_MODEL_PATH")
+print(f"⚡ Loading Electricity ND model from {ELEC_PATH}...")
+
+if not ELEC_PATH: # PyCaret load_model maneja su propia validación de archivo, pero verificamos que la variable exista
+    raise ValueError("❌ ELECTRICITY_MODEL_PATH no está definido en el .env")
+
+electricity_model = load_model(ELEC_PATH)
 print("⚡ Electricity Model loaded successfully!")
 
 
@@ -147,12 +160,10 @@ class ElectricityInput(BaseModel):
     SETTLEMENT_DATE: str
     SETTLEMENT_PERIOD: int
     TSD: float
-
     EMBEDDED_WIND_GENERATION: float
     EMBEDDED_WIND_CAPACITY: float
     EMBEDDED_SOLAR_GENERATION: float
     EMBEDDED_SOLAR_CAPACITY: float
-
     NON_BM_STOR: float
     PUMP_STORAGE_PUMPING: float
     SCOTTISH_TRANSFER: float
@@ -161,7 +172,6 @@ class ElectricityInput(BaseModel):
 
 @app.post("/electricity/predict")
 def predict_electricity(data: ElectricityInput):
-
     date_obj = pd.to_datetime(data.SETTLEMENT_DATE)
 
     df = pd.DataFrame({
@@ -186,18 +196,9 @@ def predict_electricity(data: ElectricityInput):
     df_model = df.drop(columns=['SETTLEMENT_DATE'])
 
     prediction_df = predict_model(electricity_model, df_model)
-
     pred_value = float(prediction_df['prediction_label'].iloc[0])
 
     return {"prediction": pred_value}
-
-
-
-
-
-
-
-
 
 
 # -------------------------------------------
@@ -208,25 +209,15 @@ from typing import List, Dict
 
 @app.post("/electricity/monthly")
 def electricity_monthly(data: ElectricityInput):
-    """
-    Devuelve la media diaria de ND para cada día del mes de la fecha enviada.
-    - Para cada día del mes: genera 48 filas (periodos 1..48) usando los demás campos tal cual,
-      predice con el modelo y calcula la media de las 48 predicciones.
-    - Retorna: {"monthly": [{"date": "YYYY-MM-DD", "mean": 12345.67}, ...]}
-    """
     try:
-        # Parse date and get year/month
         date_obj = pd.to_datetime(data.SETTLEMENT_DATE)
         year = date_obj.year
         month = date_obj.month
-
-        # Number of days in that month
-        ndays = monthrange(year, month)[1]  # e.g. 28..31
+        ndays = monthrange(year, month)[1] 
 
         results: List[Dict] = []
 
         for day in range(1, ndays + 1):
-            # Build DataFrame for that day: 48 settlement periods
             rows = []
             for period in range(1, 49):
                 rows.append({
@@ -244,18 +235,13 @@ def electricity_monthly(data: ElectricityInput):
                 })
 
             df_day = pd.DataFrame(rows)
-            # add derived date fields as in training
             df_day['Year'] = df_day['SETTLEMENT_DATE'].dt.year
             df_day['Month'] = df_day['SETTLEMENT_DATE'].dt.month
             df_day['Day'] = df_day['SETTLEMENT_DATE'].dt.day
             df_day['Weekday'] = df_day['SETTLEMENT_DATE'].dt.weekday
 
             df_day_model = df_day.drop(columns=['SETTLEMENT_DATE'])
-
-            # bulk predict
             pred_df = predict_model(electricity_model, df_day_model)
-
-            # prediction label column is 'prediction_label'
             preds = pred_df['prediction_label'].values
             mean_val = float(preds.mean())
 

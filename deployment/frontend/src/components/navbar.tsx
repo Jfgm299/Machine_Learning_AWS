@@ -9,30 +9,23 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-// Importamos los íconos necesarios
-import { Home, Zap, Github, Info, ChevronDown } from "lucide-react" 
+import { Home, Zap, Github, Info } from "lucide-react" 
 
-// =============================================================================
-// 1. Datos para el Dropdown
-// =============================================================================
 const dropdownComponents: { title: string; href: string; description: string; icon: React.ReactNode }[] = [
   {
-    title: "Vivienda",
+    title: "Housing",
     href: "/housing",
-    description: "Análisis de precios y tendencias del mercado inmobiliario.",
+    description: "Analysis of prices and trends in the real estate market.",
     icon: <Home className="h-4 w-4 text-sky-500" />,
   },
   {
-    title: "Electricidad",
+    title: "Electricity",
     href: "/electricity",
-    description: "Modelado y predicción del consumo de energía eléctrica.",
+    description: "Modeling and prediction of electricity consumption.",
     icon: <Zap className="h-4 w-4 text-yellow-500" />,
   },
 ]
 
-// =============================================================================
-// 2. Componente de Elemento de Lista (Dropdown Item)
-// =============================================================================
 interface ListItemProps extends React.ComponentPropsWithoutRef<"a"> {
     icon?: React.ReactNode;
 }
@@ -68,25 +61,19 @@ const ListItem = React.forwardRef<
 ListItem.displayName = "ListItem"
 
 
-// =============================================================================
-// 3. Componente Principal NavBar
-// =============================================================================
 const NavBar = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-md dark:border-slate-800 dark:bg-slate-900">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         
-        {/* Logo/Nombre de la App - FIX: Removido el icono para asegurar que no se confunda con 'volver atrás' */}
         <div className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400 flex items-center space-x-1">
-          {/* Antes: <ChevronDown className="h-6 w-6 rotate-90" /> */}
+
           <span>Najebali smo</span>
         </div>
 
-        {/* Menú de Navegación (Shadcn) - Alineado a la Derecha */}
         <NavigationMenu className="flex-grow flex justify-end">
           <NavigationMenuList className="flex space-x-2">
 
-            {/* 1. APARTADO: Modelos con Dropdown */}
             <NavigationMenuItem>
               <NavigationMenuTrigger 
                 className="flex items-center space-x-1 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -110,12 +97,10 @@ const NavBar = () => {
               </NavigationMenuContent>
             </NavigationMenuItem>
 
-            {/* 2. APARTADO: GitHub Link (Icono y Texto fijo) */}
             <NavigationMenuItem>
               <NavigationMenuLink 
                 href="https://github.com/Jfgm299/Machine_Learning_AWS" 
                 target="_blank" 
-                // Aseguramos el mismo relleno para alinear con el Trigger de Modelos
                 className={cn(navigationMenuTriggerStyle(), "font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-4")} 
               >
                 <div className="flex items-center">
@@ -125,11 +110,9 @@ const NavBar = () => {
               </NavigationMenuLink>
             </NavigationMenuItem>
 
-            {/* 3. APARTADO: Info Link (Icono y Texto fijo) */}
             <NavigationMenuItem>
               <NavigationMenuLink 
                 href="/info" 
-                // Aseguramos el mismo relleno para alinear con el Trigger de Modelos
                 className={cn(navigationMenuTriggerStyle(), "font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-4")}
               >
                 <div className="flex items-center">

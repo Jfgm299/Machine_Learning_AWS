@@ -59,7 +59,6 @@ interface AddressData {
 interface HousePredictionSearchBarProps {
     onCityChange: (city: string) => void;
     onAddressFill: (fillerFunc: AddressFillerFunction) => void; 
-    // ⭐ 2. Update signature to use the local interface
     onPredictionMade: (price: number | null, history?: HistoryDataPoint[]) => void;
 }
 
@@ -221,7 +220,7 @@ export default function HousePredictionSearchBar({ onCityChange, onAddressFill, 
             </select>
           )
         default:
-             const isCountyReadOnly = fieldKey === "county" && hasValue;
+            const isCountyReadOnly = fieldKey === "county" && hasValue;
           return <input type="text" aria-label={label} {...commonProps} readOnly={isCountyReadOnly} />
       }
     }
@@ -254,7 +253,7 @@ export default function HousePredictionSearchBar({ onCityChange, onAddressFill, 
   }
 
   return (
-    <div className="w-full px-4 pt-1.5">
+    <div className="w-full px-4 pt-1.5 relative z-[1000]">
       <div
         className="relative flex items-center justify-between rounded-full border bg-background w-full max-w-7xl mx-auto p-1 shadow-md"
         onBlur={(e) => {

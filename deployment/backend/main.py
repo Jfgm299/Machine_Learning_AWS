@@ -1,170 +1,180 @@
 import os
-from dotenv import load_dotenv # 👈 Importante para leer el .env
-
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
-import joblib
+import pandas as pd
+import joblib  # 👈 CORRECCIÓN 1: Usamos joblib para el modelo de Housing
+from pycaret.regression import load_model, predict_model # Usamos PyCaret solo para Electricidad
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-import pandas as pd
-from pycaret.regression import load_model, predict_model
+from calendar import monthrange
+from typing import List, Dict
 
-# PyCaret
-from pycaret.regression import load_model, predict_model
-
-# 1. Cargar variables de entorno al inicio
+# Load environment
 load_dotenv()
-
 app = FastAPI()
 
-# 2. Configuración de CORS dinámica
-# Leemos la variable y la convertimos en una lista separando por comas
+# CORS config
 origins_str = os.getenv("ALLOWED_ORIGINS", "*")
 origins = origins_str.split(",") if origins_str != "*" else ["*"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # 👈 Usa la lista del .env
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# ============================================
+# =========================
 # 🔵 HOUSING SECTION
-# ============================================
+# =========================
 
-@app.get("/")
-def read_root():
-    env_name = os.getenv("APP_ENV", "unknown")
-    return {"message": f"FastAPI Housing Model is running in {env_name} mode!"}
-
-
-# Load housing model + encoder
-# 1. Use the .env path (Make sure your .env has the path WITHOUT .pkl if using load_model, 
-#    or WITH .pkl if using joblib. PyCaret is smart, but let's be explicit).
-HOUSING_PATH = os.getenv("HOUSING_MODEL_PATH")
-
-# 2. Check if file exists (PyCaret adds .pkl automatically, so we check for path + '.pkl')
-if not os.path.exists(HOUSING_PATH + '.pkl'):
-    print(f"⚠️ Warning: Could not find {HOUSING_PATH}.pkl")
-
-print(f"⏳ Loading model from {HOUSING_PATH}...")
-
-# 3. USE PYCARET LOAD_MODEL (Not joblib)
-# This handles the pipeline dependencies better
-try:
-    model = load_model(HOUSING_PATH)
-    print("✅ Model loaded successfully!")
-except Exception as e:
-    print(f"❌ Failed to load model: {e}")
-    raise e 
-
+# 1. Definimos las columnas EXACTAS del entrenamiento (Cell 4)
+# NOTA: Eliminé 'sale_year' porque no estaba en tu Cell 4
 PREDICT_COLUMNS = [
-    'sale_year', 'property_type', 'old_new', 'duration', 
-    'town_city', 'district', 'county'
+    'Year','Month','Day','Weekday',
+    'property_type','old_new','duration',
+    'town_city','district','county',
+    'record_status___monthly_file_only'
 ]
 
-CATEGORICAL_COLUMNS = [
-    'property_type', 'old_new', 'duration', 
-    'town_city', 'district', 'county'
+categorical_features = [
+    'property_type','old_new','duration',
+    'town_city','district','county',
+    'record_status___monthly_file_only'
 ]
 
+# Load housing model
+HOUSING_PATH = os.getenv("HOUSING_MODEL_PATH") # Asegúrate que apunte al .joblib o .pkl
+if not os.path.exists(HOUSING_PATH):
+    print(f"⚠️ Warning: Could not find housing model at {HOUSING_PATH}")
 
+print(f"⏳ Loading housing model from {HOUSING_PATH}...")
+try:
+    # 👈 CORRECCIÓN: Usamos joblib porque tu entrenamiento fue con lgb.train directo
+    housing_model = joblib.load(HOUSING_PATH) 
+    print("✅ Housing model loaded successfully!")
+except Exception as e:
+    print(f"❌ Failed to load housing model: {e}")
+    # Si falla joblib, intentamos pickle por si acaso
+    try:
+        import pickle
+        with open(HOUSING_PATH, 'rb') as f:
+            housing_model = pickle.load(f)
+        print("✅ Housing model loaded with pickle!")
+    except:
+        raise e
+
+# Input model
 class InputData(BaseModel):
-    sale_date: str
+    date_of_transfer: str | None = None
+    sale_date: str | None = None
     property_type: str
     old_new: str
     duration: str
     town_city: str
     district: str
     county: str
-    sale_year: int 
+    sale_year: int
 
+@app.get("/")
+def read_root():
+    env_name = os.getenv("APP_ENV", "unknown")
+    return {"message": f"FastAPI Housing Model is running in {env_name} mode!"}
 
 @app.post("/housing/predict")
 def predict(data: InputData):
+    date_str = data.date_of_transfer or data.sale_date
+    if not date_str:
+        return {"error": "No date provided"}
 
-    input_data_dict = {
-        'sale_year': [data.sale_year],
-        'property_type': [data.property_type],
-        'old_new': [data.old_new],
-        'duration': [data.duration],
-        'town_city': [data.town_city],
-        'district': [data.district],
-        'county': [data.county]
-    }
+    date_obj = pd.to_datetime(date_str)
 
-    input_df = pd.DataFrame(input_data_dict)
+    # Creamos el DF
+    input_df = pd.DataFrame([{
+        'Year': date_obj.year,
+        'Month': date_obj.month,
+        'Day': date_obj.day,
+        'Weekday': date_obj.weekday(),
+        # 'sale_year': data.sale_year, 👈 ELIMINADO (no estaba en el entrenamiento)
+        'property_type': data.property_type,
+        'old_new': data.old_new,
+        'duration': data.duration,
+        'town_city': data.town_city,
+        'district': data.district,
+        'county': data.county,
+        'record_status___monthly_file_only': 'A', 
+    }])
+
+    # Filtramos columnas
     input_df = input_df[PREDICT_COLUMNS]
-    
-    # Nota: Asumo que 'encoder' está definido globalmente o cargado con el modelo.
-    # Si no lo tienes definido aquí, asegúrate de cargarlo igual que el modelo.
-    # input_df[CATEGORICAL_COLUMNS] = encoder.transform(input_df[CATEGORICAL_COLUMNS])
-        
-    try:
-        prediction = model.predict(input_df)
-        return {"prediction": float(prediction[0])}
 
+    # 👈 CORRECCIÓN CRÍTICA: Convertir a category
+    for col in categorical_features:
+        input_df[col] = input_df[col].astype('category')
+
+    try:
+        prediction = housing_model.predict(input_df)
+        return {"prediction": float(prediction[0])}
     except Exception as e:
         print("🔥 Prediction crashed:", e)
+        # Debugging info
+        print(input_df.dtypes)
         return {"error": str(e)}
-
 
 @app.post("/housing/history")
 def predict_history(data: InputData):
+    date_str = data.date_of_transfer or data.sale_date
+    if not date_str:
+        return {"error": "No date provided"}
+
     start_year = 1995
     end_year = max(start_year + 1, data.sale_year)
     years = list(range(start_year, end_year + 1))
 
     batch_data = []
     for year in years:
+        date_obj = pd.to_datetime(f"{year}-01-01")
         batch_data.append({
-            'sale_year': year,
+            'Year': date_obj.year,
+            'Month': date_obj.month,
+            'Day': date_obj.day,
+            'Weekday': date_obj.weekday(),
             'property_type': data.property_type,
             'old_new': data.old_new,
             'duration': data.duration,
             'town_city': data.town_city,
             'district': data.district,
-            'county': data.county
+            'county': data.county,
+            'record_status___monthly_file_only': 'A',
         })
 
     input_df = pd.DataFrame(batch_data)
     input_df = input_df[PREDICT_COLUMNS]
-    # input_df[CATEGORICAL_COLUMNS] = encoder.transform(input_df[CATEGORICAL_COLUMNS])
+
+    # 👈 CORRECCIÓN CRÍTICA: Convertir a category en el loop histórico también
+    for col in categorical_features:
+        input_df[col] = input_df[col].astype('category')
 
     try:
-        predictions = model.predict(input_df)
-        
-        history_result = []
-        for i, year in enumerate(years):
-            history_result.append({
-                "year": year,
-                "price": float(predictions[i])
-            })
-            
+        predictions = housing_model.predict(input_df)
+        history_result = [{"year": year, "price": float(predictions[i])} for i, year in enumerate(years)]
         return {"history": history_result}
-
     except Exception as e:
         print(f"🔥 History Prediction error: {e}")
         return {"error": str(e), "history": []}
 
+# =========================
+# 🟢 ELECTRICITY SECTION
+# =========================
 
-# ======================================================
-# 🟢 ELECTRICITY PREDICTION ENDPOINT
-# ======================================================
-
-# 4. Cargar ruta del modelo eléctrico desde el .env
 ELEC_PATH = os.getenv("ELECTRICITY_MODEL_PATH")
-print(f"⚡ Loading Electricity ND model from {ELEC_PATH}...")
-
-if not ELEC_PATH: # PyCaret load_model maneja su propia validación de archivo, pero verificamos que la variable exista
+if not ELEC_PATH:
     raise ValueError("❌ ELECTRICITY_MODEL_PATH no está definido en el .env")
 
+# Aquí sí usamos load_model de PyCaret porque es un modelo distinto
 electricity_model = load_model(ELEC_PATH)
 print("⚡ Electricity Model loaded successfully!")
-
 
 class ElectricityInput(BaseModel):
     SETTLEMENT_DATE: str
@@ -179,52 +189,38 @@ class ElectricityInput(BaseModel):
     SCOTTISH_TRANSFER: float
     IFA_FLOW: float
 
-
 @app.post("/electricity/predict")
 def predict_electricity(data: ElectricityInput):
     date_obj = pd.to_datetime(data.SETTLEMENT_DATE)
-
-    df = pd.DataFrame({
-        'SETTLEMENT_DATE': [date_obj],
-        'SETTLEMENT_PERIOD': [data.SETTLEMENT_PERIOD],
-        'TSD': [data.TSD],
-        'EMBEDDED_WIND_GENERATION': [data.EMBEDDED_WIND_GENERATION],
-        'EMBEDDED_WIND_CAPACITY': [data.EMBEDDED_WIND_CAPACITY],
-        'EMBEDDED_SOLAR_GENERATION': [data.EMBEDDED_SOLAR_GENERATION],
-        'EMBEDDED_SOLAR_CAPACITY': [data.EMBEDDED_SOLAR_CAPACITY],
-        'NON_BM_STOR': [data.NON_BM_STOR],
-        'PUMP_STORAGE_PUMPING': [data.PUMP_STORAGE_PUMPING],
-        'SCOTTISH_TRANSFER': [data.SCOTTISH_TRANSFER],
-        'IFA_FLOW': [data.IFA_FLOW],
-    })
-
+    df = pd.DataFrame([{
+        'SETTLEMENT_DATE': date_obj,
+        'SETTLEMENT_PERIOD': data.SETTLEMENT_PERIOD,
+        'TSD': data.TSD,
+        'EMBEDDED_WIND_GENERATION': data.EMBEDDED_WIND_GENERATION,
+        'EMBEDDED_WIND_CAPACITY': data.EMBEDDED_WIND_CAPACITY,
+        'EMBEDDED_SOLAR_GENERATION': data.EMBEDDED_SOLAR_GENERATION,
+        'EMBEDDED_SOLAR_CAPACITY': data.EMBEDDED_SOLAR_CAPACITY,
+        'NON_BM_STOR': data.NON_BM_STOR,
+        'PUMP_STORAGE_PUMPING': data.PUMP_STORAGE_PUMPING,
+        'SCOTTISH_TRANSFER': data.SCOTTISH_TRANSFER,
+        'IFA_FLOW': data.IFA_FLOW
+    }])
     df['Year'] = df['SETTLEMENT_DATE'].dt.year
     df['Month'] = df['SETTLEMENT_DATE'].dt.month
     df['Day'] = df['SETTLEMENT_DATE'].dt.day
     df['Weekday'] = df['SETTLEMENT_DATE'].dt.weekday
-
     df_model = df.drop(columns=['SETTLEMENT_DATE'])
-
-    prediction_df = predict_model(electricity_model, df_model)
-    pred_value = float(prediction_df['prediction_label'].iloc[0])
-
-    return {"prediction": pred_value}
-
-
-# -------------------------------------------
-# BULK / MONTHLY PREDICTIONS ENDPOINT
-# -------------------------------------------
-from calendar import monthrange
-from typing import List, Dict
+    
+    # PyCaret se encarga de los tipos internamente, no tocamos nada aquí
+    pred_df = predict_model(electricity_model, df_model)
+    return {"prediction": float(pred_df['prediction_label'].iloc[0])}
 
 @app.post("/electricity/monthly")
 def electricity_monthly(data: ElectricityInput):
     try:
         date_obj = pd.to_datetime(data.SETTLEMENT_DATE)
-        year = date_obj.year
-        month = date_obj.month
-        ndays = monthrange(year, month)[1] 
-
+        year, month = date_obj.year, date_obj.month
+        ndays = monthrange(year, month)[1]
         results: List[Dict] = []
 
         for day in range(1, ndays + 1):
@@ -241,27 +237,20 @@ def electricity_monthly(data: ElectricityInput):
                     'NON_BM_STOR': data.NON_BM_STOR,
                     'PUMP_STORAGE_PUMPING': data.PUMP_STORAGE_PUMPING,
                     'SCOTTISH_TRANSFER': data.SCOTTISH_TRANSFER,
-                    'IFA_FLOW': data.IFA_FLOW,
+                    'IFA_FLOW': data.IFA_FLOW
                 })
-
             df_day = pd.DataFrame(rows)
             df_day['Year'] = df_day['SETTLEMENT_DATE'].dt.year
             df_day['Month'] = df_day['SETTLEMENT_DATE'].dt.month
             df_day['Day'] = df_day['SETTLEMENT_DATE'].dt.day
             df_day['Weekday'] = df_day['SETTLEMENT_DATE'].dt.weekday
-
             df_day_model = df_day.drop(columns=['SETTLEMENT_DATE'])
+            
             pred_df = predict_model(electricity_model, df_day_model)
-            preds = pred_df['prediction_label'].values
-            mean_val = float(preds.mean())
-
-            results.append({
-                "date": f"{year}-{month:02d}-{day:02d}",
-                "mean": mean_val
-            })
+            mean_val = float(pred_df['prediction_label'].mean())
+            results.append({"date": f"{year}-{month:02d}-{day:02d}", "mean": mean_val})
 
         return {"monthly": results}
-
     except Exception as e:
         print("🔥 electricity_monthly error:", e)
         return {"error": str(e), "monthly": []}

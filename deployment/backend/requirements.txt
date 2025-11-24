@@ -1,0 +1,27 @@
+# Servidor Web (FastAPI) y Despliegue
+fastapi==0.121.2
+starlette==0.49.3  # Dependencia de FastAPI
+uvicorn==0.38.0    # Servidor ASGI (worker)
+gunicorn           # Servidor de Producción (Gunicorn - No estaba en tu lista, PERO ES VITAL para el Dockerfile que definimos)
+
+# Utilidades Core
+annotated-types==0.7.0  # Para Pydantic v2
+pydantic==2.12.4        # Para BaseModel
+pydantic-core==2.41.5   # Core de Pydantic
+python-dotenv==1.2.1    # Para os.getenv() en desarrollo local
+requests==2.32.5        # CRUCIAL para descargar los modelos remotos
+joblib==1.3.2           # Para cargar el modelo Housing
+packaging==25.0         # Dependencia común de PyCaret/FastAPI
+
+# Manipulación de Datos
+pandas==2.1.4
+numpy==1.26.4
+pytz==2025.2            # Dependencia de Pandas
+python-dateutil==2.9.0.post0 # Dependencia de Pandas
+tzdata==2025.2          # Dependencia de Pandas
+
+# Machine Learning y Modelos
+pycaret==3.3.2          # Carga y Predicción del Modelo Electricity
+lightgbm==4.6.0         # Algoritmo usado en el modelo Housing
+scikit-learn==1.4.2     # Dependencia base de PyCaret
+scipy==1.11.4           # Dependencia base de ML

@@ -1,6 +1,5 @@
 ## 📝 Group Information
 
-Group name: Najebali smo
 
 | Name |
 | :--- |
